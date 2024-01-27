@@ -1,0 +1,47 @@
+# Import necessary libraries
+import argparse
+import streamlit as st
+from search_engines.engines import search_engines_dict
+from search_engines.multiple_search_engines import MultipleSearchEngines, AllSearchEngines
+from search_engines import config
+
+def main():
+    st.title("Search Engine Query Web App")
+
+    # Collect user input using Streamlit widgets
+    user_query = st.text_input("What job are you looking for?")
+    search_engines = st.selectbox("Select Search Engine(s)", list(search_engines_dict.keys()), index=0)
+    output_format = st.selectbox("Select Output Format", ["html", "csv", "json"], index=0)
+    output_filename = st.text_input("Enter Output Filename", config.OUTPUT_DIR + 'output')
+    num_pages = st.number_input("Enter Number of Pages", value=config.SEARCH_ENGINE_RESULTS_PAGES, min_value=1)
+    filter_results = st.text_input("Filter Results [url, title, text, host]")
+    ignore_duplicates = st.checkbox("Ignore Duplicates")
+    proxy = st.text_input("Use Proxy (protocol://ip:port)", config.PROXY)
+
+    # Perform search when the user clicks the button
+    if st.button("Search"):
+        timeout = config.TIMEOUT + (10 * bool(proxy))
+        engines = [e.strip() for e in search_engines.lower().split(',') if e.strip() in search_engines_dict or e.strip() == 'all']
+
+        if not engines:
+            st.error('Please choose a search engine: ' + ', '.join(search_engines_dict))
+        else:
+            if 'all' in engines:
+                engine = AllSearchEngines(proxy, timeout)
+            elif len(engines) > 1:
+                engine = MultipleSearchEngines(engines, proxy, timeout)
+            else:
+                engine = search_engines_dict[engines[0]](proxy, timeout)
+
+            engine.ignore_duplicate_urls = ignore_duplicates
+            if filter_results:
+                engine.set_search_operator(filter_results)
+
+            st.info("Searching... Please wait.")
+            # Replace the ellipsis (...) with your full search query
+            engine.search(user_query + " AND site:20tab.com/careers OR site:linkedin.com/company/3beesrl/jobs/ OR ...")
+            engine.output(output_format, output_filename)
+            st.success(f"Search complete. Results saved to {output_filename}.{output_format}")
+
+if __name__ == '__main__':
+    main()
